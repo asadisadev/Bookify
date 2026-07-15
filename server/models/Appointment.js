@@ -73,6 +73,7 @@ appointmentSchema.index({ professional: 1 });
 appointmentSchema.index({ organization: 1 });
 appointmentSchema.index({ appointmentDate: 1 });
 appointmentSchema.index({ professional: 1, appointmentDate: 1, tokenNumber: 1 });
+appointmentSchema.index({ qrCode: 1 }, { unique: true, sparse: true });
 
 const Appointment = mongoose.model("Appointment", appointmentSchema);
 

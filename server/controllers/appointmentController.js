@@ -1,5 +1,7 @@
 import Appointment from "../models/Appointment.js";
 import User from "../models/User.js";
+import { emitQueueUpdate } from "../utils/queueEmitter.js";
+import { generateQRPayload, renderQRImage } from "../utils/qrGenerator.js";
 
 // Helper: strip time from a Date and return start/end of that calendar day (UTC)
 const getDayRange = (date) => {
@@ -73,8 +75,9 @@ export const bookAppointment = async (req, res) => {
 
         const tokenNumber = lastAppointment ? lastAppointment.tokenNumber + 1 : 1;
 
-        // ── Create the appointment ──
-        const appointment = await Appointment.create({
+        // ── Generate unique QR payload BEFORE saving ──
+        // We need the appointment _id first, so we build the doc then save.
+        const appointment = new Appointment({
             customer:        req.user._id,
             professional:    professionalId,
             organization:    professional.organization,
@@ -86,12 +89,24 @@ export const bookAppointment = async (req, res) => {
             checkedIn:       false
         });
 
+        // Generate the structured QR payload and store it as a JSON string
+        appointment.qrCode = generateQRPayload({
+            appointmentId:  appointment._id.toString(),
+            customerId:     req.user._id.toString(),
+            professionalId: professionalId.toString(),
+            date:           appointmentDate
+        });
+        await appointment.save();
+
         // Populate for a rich response
         const populated = await appointment.populate([
             { path: "customer",     select: "name email phone" },
             { path: "professional", select: "name profession specialization" },
             { path: "organization", select: "name" }
         ]);
+
+        // ── Emit real-time queue update to the professional's room ──
+        emitQueueUpdate(professionalId, new Date(appointmentDate));
 
         return res.status(201).json({
             success: true,
@@ -203,6 +218,9 @@ export const cancelAppointment = async (req, res) => {
             appointment.cancelReason = req.body.cancelReason;
         }
         await appointment.save();
+
+        // ── Emit real-time queue update to the professional's room ──
+        emitQueueUpdate(appointment.professional.toString(), appointment.appointmentDate);
 
         return res.status(200).json({
             success: true,
@@ -320,6 +338,9 @@ export const checkInAppointment = async (req, res) => {
             { path: "organization", select: "name" }
         ]);
 
+        // ── Emit real-time queue update to the professional's room ──
+        emitQueueUpdate(appointment.professional.toString(), appointment.appointmentDate);
+
         return res.status(200).json({
             success: true,
             message: "Customer checked in successfully",
@@ -368,7 +389,7 @@ export const completeAppointment = async (req, res) => {
         appointment.status = "Completed";
         await appointment.save();
 
-        // ── Advance the queue: auto-check-in the next Booked appointment ──
+        // ── Advance the queue: surface the next Booked appointment ──
         const { start, end } = getDayRange(appointment.appointmentDate);
 
         const nextAppointment = await Appointment.findOne({
@@ -382,12 +403,14 @@ export const completeAppointment = async (req, res) => {
 
         let nextUp = null;
         if (nextAppointment) {
-            // Surface the next token so the professional knows who is next
             nextUp = {
-                tokenNumber: nextAppointment.tokenNumber,
+                tokenNumber:   nextAppointment.tokenNumber,
                 appointmentId: nextAppointment._id
             };
         }
+
+        // ── Emit real-time queue update to the professional's room ──
+        emitQueueUpdate(appointment.professional.toString(), appointment.appointmentDate);
 
         return res.status(200).json({
             success: true,
@@ -399,6 +422,132 @@ export const completeAppointment = async (req, res) => {
         });
     } catch (error) {
         console.error("completeAppointment Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Server Error"
+        });
+    }
+};
+// ─────────────────────────────────────────────────────────────────
+// @desc    Return the QR code image (base64 PNG) for an appointment
+// @route   GET /api/appointments/:id/qrcode
+// @access  Private (Customer who owns it OR the Professional)
+// ─────────────────────────────────────────────────────────────────
+export const getQrCode = async (req, res) => {
+    try {
+        const appointment = await Appointment.findById(req.params.id).lean();
+
+        if (!appointment) {
+            return res.status(404).json({
+                success: false,
+                message: "Appointment not found"
+            });
+        }
+
+        // Only the booking customer or the assigned professional may access
+        const requesterId = req.user._id.toString();
+        const isOwner        = appointment.customer.toString()    === requesterId;
+        const isProfessional = appointment.professional.toString() === requesterId;
+
+        if (!isOwner && !isProfessional) {
+            return res.status(403).json({
+                success: false,
+                message: "Not authorized to view this QR code"
+            });
+        }
+
+        if (!appointment.qrCode) {
+            return res.status(404).json({
+                success: false,
+                message: "QR code not found for this appointment"
+            });
+        }
+
+        // Render the payload as a base64 PNG data-URL on the fly
+        const qrImage = await renderQRImage(appointment.qrCode);
+
+        return res.status(200).json({
+            success: true,
+            appointmentId: appointment._id,
+            tokenNumber:   appointment.tokenNumber,
+            qrPayload:     appointment.qrCode,
+            qrImage                                // "data:image/png;base64,…"
+        });
+    } catch (error) {
+        console.error("getQrCode Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Server Error"
+        });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────
+// @desc    Self-service QR check-in (customer scans their own QR)
+// @route   POST /api/appointments/checkin
+// @access  Private (any authenticated user — typically scanned at kiosk)
+// ─────────────────────────────────────────────────────────────────
+export const qrCheckIn = async (req, res) => {
+    try {
+        const { qrCode } = req.body;
+
+        if (!qrCode) {
+            return res.status(400).json({
+                success: false,
+                message: "qrCode is required"
+            });
+        }
+
+        // Look up appointment by the stored QR payload
+        const appointment = await Appointment.findOne({ qrCode });
+
+        if (!appointment) {
+            return res.status(404).json({
+                success: false,
+                message: "Invalid QR code — no matching appointment found"
+            });
+        }
+
+        // ── Prevent duplicate check-in ──
+        if (appointment.checkedIn || appointment.status === "CheckedIn") {
+            return res.status(409).json({
+                success: false,
+                message: "This appointment has already been checked in"
+            });
+        }
+
+        // ── Guard: only Booked appointments can be checked in ──
+        if (appointment.status !== "Booked") {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot check in — appointment status is: ${appointment.status}`
+            });
+        }
+
+        // ── Apply check-in ──
+        appointment.checkedIn = true;
+        appointment.status    = "CheckedIn";
+        await appointment.save();
+
+        const populated = await appointment.populate([
+            { path: "customer",      select: "name email phone" },
+            { path: "professional",  select: "name profession specialization" },
+            { path: "organization",  select: "name" }
+        ]);
+
+        // ── Emit real-time queue update to the professional's room ──
+        emitQueueUpdate(
+            appointment.professional.toString(),
+            appointment.appointmentDate
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Check-in successful",
+            appointment: populated
+        });
+    } catch (error) {
+        console.error("qrCheckIn Error:", error);
         return res.status(500).json({
             success: false,
             message: error.message || "Server Error"

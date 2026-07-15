@@ -7,7 +7,9 @@ import {
     cancelAppointment,
     getQueueStatus,
     checkInAppointment,
-    completeAppointment
+    completeAppointment,
+    getQrCode,
+    qrCheckIn
 } from "../controllers/appointmentController.js";
 
 const router = express.Router();
@@ -15,6 +17,10 @@ const router = express.Router();
 // ── Customer Routes ───────────────────────────────────────────────
 // POST /api/appointments/book        — Book an appointment (Customer)
 router.post("/book", protect, authorize("Customer"), bookAppointment);
+
+// POST /api/appointments/checkin     — Self-service QR check-in (any auth user)
+// ⚠ Must be declared BEFORE /:id routes to avoid Express treating "checkin" as an :id
+router.post("/checkin", protect, qrCheckIn);
 
 // GET  /api/appointments/my          — Get logged-in customer's appointments
 router.get("/my", protect, authorize("Customer"), getMyAppointments);
@@ -35,5 +41,8 @@ router.put("/:id/complete", protect, authorize("Professional"), completeAppointm
 // ── Public Queue Routes ───────────────────────────────────────────
 // GET  /api/appointments/queue/:professionalId — Live queue status
 router.get("/queue/:professionalId", protect, getQueueStatus);
+
+// GET  /api/appointments/:id/qrcode  — Get QR image for an appointment
+router.get("/:id/qrcode", protect, getQrCode);
 
 export default router;
