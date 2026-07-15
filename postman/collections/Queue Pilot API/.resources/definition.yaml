@@ -1,0 +1,19 @@
+$kind: collection
+name: Queue Pilot API
+description: |-
+  REST API for Queue Pilot — a queue and appointment management platform.
+  Covers Auth (register, login, profile) and Organization (CRUD + approval) endpoints.
+  Base URL is stored in the environment variable {{baseUrl}}.
+variables:
+  - key: baseUrl
+    value: 'http://localhost:5000'
+  - key: token
+    value: ''
+  - key: adminToken
+    value: ''
+  - key: userId
+    value: ''
+  - key: orgId
+    value: ''
+  - key: searchName
+    value: ''

@@ -1,0 +1,30 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/api/organizations/{{orgId}}'
+order: 3000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Organization object is returned", function () {
+          const json = pm.response.json();
+          pm.expect(json.success).to.be.true;
+          pm.expect(json.organization).to.be.an("object");
+      });
+      pm.test("Organization has required fields", function () {
+          const json = pm.response.json();
+          const org = json.organization;
+          pm.expect(org).to.have.property("name");
+          pm.expect(org).to.have.property("category");
+          pm.expect(org).to.have.property("city");
+          pm.expect(org).to.have.property("email");
+      });
+      pm.test("createdBy is populated", function () {
+          const json = pm.response.json();
+          pm.expect(json.organization.createdBy).to.be.an("object");
+          pm.expect(json.organization.createdBy).to.have.property("name");
+          pm.expect(json.organization.createdBy).to.have.property("email");
+      });

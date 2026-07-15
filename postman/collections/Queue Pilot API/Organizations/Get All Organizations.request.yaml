@@ -1,0 +1,27 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/api/organizations'
+order: 1000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Response has success flag and count", function () {
+          const json = pm.response.json();
+          pm.expect(json.success).to.be.true;
+          pm.expect(json).to.have.property("count");
+          pm.expect(json.organizations).to.be.an("array");
+      });
+      pm.test("Only approved organizations are returned", function () {
+          const json = pm.response.json();
+          json.organizations.forEach(function (org) {
+              pm.expect(org.isApproved).to.be.true;
+          });
+      });
+      pm.test("Count matches array length", function () {
+          const json = pm.response.json();
+          pm.expect(json.count).to.equal(json.organizations.length);
+      });

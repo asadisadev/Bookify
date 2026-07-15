@@ -1,0 +1,48 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/api/auth/register'
+order: 1000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Test Customer",
+      "email": "customer@test.com",
+      "password": "Password123!",
+      "phone": "03001234567"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 201", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test("Registration successful", function () {
+          const json = pm.response.json();
+          pm.expect(json.success).to.be.true;
+          pm.expect(json.message).to.include("Registration successful");
+      });
+      pm.test("Token is returned", function () {
+          const json = pm.response.json();
+          pm.expect(json.token).to.be.a("string").and.not.empty;
+      });
+      pm.test("User object is returned without password", function () {
+          const json = pm.response.json();
+          pm.expect(json.user).to.be.an("object");
+          pm.expect(json.user.password).to.be.undefined;
+          pm.expect(json.user.role).to.equal("Customer");
+      });
+      pm.test("User is auto-approved (Customer)", function () {
+          const json = pm.response.json();
+          pm.expect(json.user.isApproved).to.be.true;
+      });
+      // Save token and userId for subsequent requests
+      if (pm.response.code === 201) {
+          const json = pm.response.json();
+          pm.collectionVariables.set("token", json.token);
+          pm.collectionVariables.set("userId", json.user._id);
+      }
