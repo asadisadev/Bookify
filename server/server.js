@@ -1,10 +1,12 @@
 import express from "express";
+import { createServer } from "http";
 import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
 import organizationRoutes from "./routes/organizationRoutes.js";
 import appointmentRoutes from "./routes/appointmentRoutes.js";
+import { initSocket } from "./sockets/socket.js";
 
 dotenv.config();
 
@@ -40,6 +42,10 @@ app.get("/health", (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+// Create HTTP server and attach Socket.IO
+const httpServer = createServer(app);
+initSocket(httpServer);
+
+httpServer.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
 });
