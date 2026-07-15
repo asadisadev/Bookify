@@ -51,6 +51,10 @@ const userSchema = new mongoose.Schema(
             type: Number,
             default: 0
         },
+        averageServiceTime: {
+            type: Number,
+            default: 15
+        },
         workingDays: {
             type: [String],
             enum: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
