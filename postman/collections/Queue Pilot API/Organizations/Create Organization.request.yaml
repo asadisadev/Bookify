@@ -1,0 +1,53 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/api/organizations'
+order: 4000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Test Clinic",
+      "category": "Healthcare",
+      "address": "123 Main Street",
+      "city": "Karachi",
+      "phone": "02112345678",
+      "email": "clinic@test.com",
+      "description": "A test healthcare organization"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 201", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test("Organization created successfully", function () {
+          const json = pm.response.json();
+          pm.expect(json.success).to.be.true;
+          pm.expect(json.message).to.include("pending approval");
+      });
+      pm.test("Organization is not auto-approved", function () {
+          const json = pm.response.json();
+          pm.expect(json.organization.isApproved).to.be.false;
+      });
+      pm.test("Organization has all required fields", function () {
+          const json = pm.response.json();
+          const org = json.organization;
+          pm.expect(org).to.have.property("name");
+          pm.expect(org).to.have.property("category");
+          pm.expect(org).to.have.property("city");
+          pm.expect(org).to.have.property("createdBy");
+      });
+      // Save orgId for subsequent requests
+      if (pm.response.code === 201) {
+          const json = pm.response.json();
+          pm.collectionVariables.set("orgId", json.organization._id);
+      }

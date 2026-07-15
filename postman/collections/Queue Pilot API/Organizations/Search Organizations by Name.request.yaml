@@ -1,0 +1,23 @@
+$kind: http-request
+method: GET
+url: '{{baseUrl}}/api/organizations'
+order: 2000
+queryParams:
+  - key: name
+    value: '{{searchName}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Search returns filtered results", function () {
+          const json = pm.response.json();
+          pm.expect(json.success).to.be.true;
+          pm.expect(json.organizations).to.be.an("array");
+      });
+      pm.test("Count matches array length", function () {
+          const json = pm.response.json();
+          pm.expect(json.count).to.equal(json.organizations.length);
+      });
