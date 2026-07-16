@@ -1,0 +1,32 @@
+$kind: http-request
+name: 'Get Current User (Me)'
+method: GET
+url: '{{baseUrl}}/api/auth/me'
+order: 4000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("User profile is returned", function () {
+          const json = pm.response.json();
+          pm.expect(json.success).to.be.true;
+          pm.expect(json.user).to.be.an("object");
+      });
+      pm.test("Password is not exposed", function () {
+          const json = pm.response.json();
+          pm.expect(json.user.password).to.be.undefined;
+      });
+      pm.test("User has required fields", function () {
+          const json = pm.response.json();
+          pm.expect(json.user).to.have.property("name");
+          pm.expect(json.user).to.have.property("email");
+          pm.expect(json.user).to.have.property("role");
+      });

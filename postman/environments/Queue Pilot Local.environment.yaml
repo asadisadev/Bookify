@@ -1,0 +1,26 @@
+name: Queue Pilot Local
+values:
+  - key: baseUrl
+    value: 'http://localhost:5000'
+    enabled: true
+    type: default
+  - key: token
+    value: ''
+    enabled: true
+    type: secret
+  - key: adminToken
+    value: ''
+    enabled: true
+    type: secret
+  - key: userId
+    value: ''
+    enabled: true
+    type: default
+  - key: orgId
+    value: ''
+    enabled: true
+    type: default
+  - key: searchName
+    value: ''
+    enabled: true
+    type: default

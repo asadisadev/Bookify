@@ -1,0 +1,44 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/api/auth/login'
+order: 3000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "customer@test.com",
+      "password": "Password123!"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Login successful", function () {
+          const json = pm.response.json();
+          pm.expect(json.success).to.be.true;
+          pm.expect(json.message).to.equal("Login successful");
+      });
+      pm.test("Token is returned", function () {
+          const json = pm.response.json();
+          pm.expect(json.token).to.be.a("string").and.not.empty;
+      });
+      pm.test("User object is returned without password", function () {
+          const json = pm.response.json();
+          pm.expect(json.user).to.be.an("object");
+          pm.expect(json.user.password).to.be.undefined;
+      });
+      pm.test("Response time is under 1000ms", function () {
+          pm.expect(pm.response.responseTime).to.be.below(1000);
+      });
+      // Save token for subsequent requests
+      if (pm.response.code === 200) {
+          const json = pm.response.json();
+          pm.collectionVariables.set("token", json.token);
+          pm.collectionVariables.set("userId", json.user._id);
+      }

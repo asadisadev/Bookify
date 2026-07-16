@@ -1,0 +1,47 @@
+$kind: http-request
+method: POST
+url: '{{baseUrl}}/api/auth/register'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Dr. Test Professional",
+      "email": "professional@test.com",
+      "password": "Password123!",
+      "phone": "03009876543",
+      "role": "Professional",
+      "organization": "{{orgId}}",
+      "profession": "Doctor",
+      "specialization": "General Physician",
+      "appointmentFee": 500,
+      "workingDays": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      "workingHours": { "start": "09:00", "end": "17:00" }
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 201", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test("Professional registration message mentions pending approval", function () {
+          const json = pm.response.json();
+          pm.expect(json.success).to.be.true;
+          pm.expect(json.message).to.include("pending approval");
+      });
+      pm.test("Token is returned", function () {
+          const json = pm.response.json();
+          pm.expect(json.token).to.be.a("string").and.not.empty;
+      });
+      pm.test("Professional is NOT auto-approved", function () {
+          const json = pm.response.json();
+          pm.expect(json.user.isApproved).to.be.false;
+      });
+      pm.test("Role is Professional", function () {
+          const json = pm.response.json();
+          pm.expect(json.user.role).to.equal("Professional");
+      });
