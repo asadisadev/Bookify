@@ -23,11 +23,11 @@ export const register = async (req, res) => {
             profileImage
         } = req.body;
 
-        // Basic validations
-        if (!name || !email || !password || !phone) {
+        // Basic validations - Make phone optional
+        if (!name || !email || !password) {
             return res.status(400).json({
                 success: false,
-                message: "Please provide name, email, password, and phone number"
+                message: "Please provide name, email, and password"
             });
         }
 
@@ -68,21 +68,20 @@ export const register = async (req, res) => {
             });
         }
 
-        // Create the user
-        // Note: isApproved is automatically set by the default function in the User schema
+        // Create the user - phone is optional
         const user = await User.create({
             name,
             email,
             password,
-            phone,
+            phone: phone || "", // If phone not provided, set as empty string
             role: role || "Customer",
             organization: organization || null,
-            profession,
-            specialization,
-            appointmentFee,
-            workingDays,
-            workingHours,
-            profileImage
+            profession: profession || null,
+            specialization: specialization || null,
+            appointmentFee: appointmentFee || null,
+            workingDays: workingDays || null,
+            workingHours: workingHours || null,
+            profileImage: profileImage || null
         });
 
         if (user) {
