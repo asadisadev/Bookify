@@ -1,19 +1,22 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth, primaryRole } from "../lib/auth-context";
 import { Button } from "./ui/button";
-import { 
-  Search, 
-  Menu, 
-  X, 
-  User, 
-  LogOut, 
-  Settings, 
-  Calendar, 
+import {
+  Menu,
+  X,
+  User,
+  LogOut,
+  Settings,
+  Calendar,
   Home,
   Briefcase,
   Users,
+  Search,
   Sparkles,
   ChevronDown,
+  PlusCircle,
+  Star,
+  Bell,
   LayoutDashboard,
   Store,
   Heart
@@ -21,36 +24,20 @@ import {
 import { useState, useEffect, useRef } from "react";
 import { cn } from "../lib/utils";
 
-// Define User type
-interface User {
-  id: string;
-  email: string;
-  user_metadata?: {
-    full_name?: string;
-    avatar_url?: string;
-  };
-}
-
-interface AuthState {
-  user: User | null;
-  roles: string[];
-  signOut: () => Promise<void>;
-}
-
-export function SiteHeader() {
-  const { user, roles, signOut } = useAuth() as AuthState;
-  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
-  const [userMenuOpen, setUserMenuOpen] = useState<boolean>(false);
-  const [scrolled, setScrolled] = useState<boolean>(false);
+export function Navbar() {
+  const { user, roles, signOut } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const userMenuRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef(null);
 
-  const role = primaryRole(roles as any);
+  const role = primaryRole(roles);
 
   // Handle scroll effect
   useEffect(() => {
-    const handleScroll = (): void => {
+    const handleScroll = () => {
       setScrolled(window.scrollY > 10);
     };
     window.addEventListener("scroll", handleScroll);
@@ -59,8 +46,8 @@ export function SiteHeader() {
 
   // Close user menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent): void => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+    const handleClickOutside = (event) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
         setUserMenuOpen(false);
       }
     };
@@ -68,21 +55,22 @@ export function SiteHeader() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleSignOut = async (): Promise<void> => {
+  const handleSignOut = async () => {
     await signOut();
     setUserMenuOpen(false);
     setMobileMenuOpen(false);
     navigate("/");
   };
 
-  const isActive = (path: string): boolean => {
+  const isActive = (path) => {
     return location.pathname === path || location.pathname.startsWith(path + "/");
   };
 
   // Navigation items based on role
-  const getNavItems = (): Array<{ label: string; path: string; icon: any }> => {
-    const items: Array<{ label: string; path: string; icon: any }> = [];
+  const getNavItems = () => {
+    const items = [];
 
+    // Common items for all users
     items.push({
       label: "Home",
       path: "/",
@@ -142,17 +130,6 @@ export function SiteHeader() {
 
   const navItems = getNavItems();
 
-  // Get user display name
-  const getUserName = (): string => {
-    if (!user) return "User";
-    return user.user_metadata?.full_name || user.email?.split("@")[0] || "User";
-  };
-
-  // Get user avatar
-  const getUserAvatar = (): string | null => {
-    return user?.user_metadata?.avatar_url || null;
-  };
-
   return (
     <header
       className={cn(
@@ -198,7 +175,7 @@ export function SiteHeader() {
             ))}
           </nav>
 
-          {/* Right side - Auth buttons or user menu */}
+          {/* Right side - Auth or User Menu */}
           <div className="flex items-center gap-3">
             {user ? (
               <div className="relative" ref={userMenuRef}>
@@ -207,10 +184,10 @@ export function SiteHeader() {
                   className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl hover:bg-secondary/50 transition-all duration-200 group"
                 >
                   <div className="relative h-9 w-9 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center ring-2 ring-primary/10 group-hover:ring-primary/20 transition-all duration-300">
-                    {getUserAvatar() ? (
+                    {user.user_metadata?.avatar_url ? (
                       <img
-                        src={getUserAvatar()!}
-                        alt={getUserName()}
+                        src={user.user_metadata.avatar_url}
+                        alt={user.user_metadata.full_name || user.email || "User"}
                         className="h-9 w-9 rounded-full object-cover"
                       />
                     ) : (
@@ -218,7 +195,7 @@ export function SiteHeader() {
                     )}
                   </div>
                   <span className="text-sm font-medium hidden md:block">
-                    {getUserName()}
+                    {user.user_metadata?.full_name || user.email?.split("@")[0] || "User"}
                   </span>
                   <ChevronDown className={cn(
                     "h-4 w-4 text-muted-foreground transition-transform duration-200",
@@ -231,7 +208,7 @@ export function SiteHeader() {
                   <div className="absolute right-0 mt-2 w-64 bg-background/95 backdrop-blur-xl border border-border/60 rounded-2xl shadow-2xl py-1.5 overflow-hidden animate-in slide-in-from-top-2 duration-200">
                     <div className="px-4 py-3.5 border-b border-border/60">
                       <p className="text-sm font-semibold">
-                        {getUserName()}
+                        {user.user_metadata?.full_name || user.email || "User"}
                       </p>
                       <p className="text-xs text-muted-foreground truncate mt-0.5">
                         {user.email}
@@ -376,57 +353,5 @@ export function SiteHeader() {
         </div>
       </div>
     </header>
-  );
-}
-
-export function SiteFooter() {
-  return (
-    <footer className="border-t border-border/60 bg-background/80 backdrop-blur-sm">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="h-5 w-5 text-primary" />
-              <h3 className="font-display text-lg font-bold">Bookify</h3>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Book appointments instantly with the best businesses.
-            </p>
-          </div>
-          <div>
-            <h4 className="font-medium text-sm mb-3">For Customers</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link to="/explore" className="hover:text-foreground transition-colors">Explore</Link></li>
-              <li><Link to="/auth?mode=signup" className="hover:text-foreground transition-colors">Sign Up</Link></li>
-              <li><Link to="/how-it-works" className="hover:text-foreground transition-colors">How It Works</Link></li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-medium text-sm mb-3">For Businesses</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link to="/for-business" className="hover:text-foreground transition-colors">List Your Business</Link></li>
-              <li><Link to="/pricing" className="hover:text-foreground transition-colors">Pricing</Link></li>
-              <li><Link to="/resources" className="hover:text-foreground transition-colors">Resources</Link></li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-medium text-sm mb-3">Company</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link to="/about" className="hover:text-foreground transition-colors">About</Link></li>
-              <li><Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link></li>
-              <li><Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
-            </ul>
-          </div>
-        </div>
-        <div className="mt-8 pt-8 border-t border-border/60 flex flex-col sm:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} Bookify. All rights reserved.</p>
-          <div className="flex gap-4">
-            <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
-            <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
-            <Link to="/cookies" className="hover:text-foreground transition-colors">Cookies</Link>
-          </div>
-        </div>
-      </div>
-    </footer>
   );
 }

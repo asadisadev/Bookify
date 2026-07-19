@@ -5,12 +5,13 @@ import mongoose from "mongoose";
 import authRoutes from "./routes/authRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import appointmentRoutes from "./routes/appointmentRoutes.js";
+import businessRoutes from "./routes/businessRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 import connectDB from "./config/db.js";
 
-// Load environment variables
 dotenv.config();
 
-// Debug: Check if env variables are loaded
+// Debug
 console.log("=== Environment Check ===");
 console.log(`PORT: ${process.env.PORT || "Not set"}`);
 console.log(`MONGO_URI: ${process.env.MONGO_URI ? "✅ Set" : "❌ Not Set"}`);
@@ -18,37 +19,37 @@ console.log(`JWT_SECRET: ${process.env.JWT_SECRET ? "✅ Set" : "❌ Not Set"}`)
 console.log(`FRONTEND_URL: ${process.env.FRONTEND_URL || "Not set"}`);
 console.log("=========================");
 
-// Exit if required environment variables are missing
 if (!process.env.MONGO_URI) {
-    console.error("❌ MONGO_URI is required but not set in .env file");
+    console.error("❌ MONGO_URI is required");
     process.exit(1);
 }
 
 if (!process.env.JWT_SECRET) {
-    console.error("❌ JWT_SECRET is required but not set in .env file");
+    console.error("❌ JWT_SECRET is required");
     process.exit(1);
 }
 
-// Connect to MongoDB
 connectDB();
 
 const app = express();
 
-// CORS configuration - Fixed
+// CORS configuration - FIXED: Removed app.options('*', cors())
 app.use(cors({
     origin: [
         process.env.FRONTEND_URL || "http://localhost:5173",
+        "https://bookify-4odk1hgx8-asadisadev.vercel.app",
+        "https://bookify.vercel.app",
+        "https://*.vercel.app",
+        "https://*.railway.app",
         "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000"
+        "http://localhost:3000"
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
 }));
 
-// REMOVED the problematic line: app.options('*', cors());
+// DO NOT use app.options('*', cors()) - it causes the path-to-regexp error
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -63,6 +64,8 @@ app.use((req, res, next) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/appointments", appointmentRoutes);
+app.use("/api/business", businessRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
@@ -93,8 +96,18 @@ app.get("/", (req, res) => {
             auth: "/api/auth",
             dashboard: "/api/dashboard",
             appointments: "/api/appointments",
+            business: "/api/business",
+            admin: "/api/admin",
             health: "/api/health"
         }
+    });
+});
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        message: `Route ${req.method} ${req.url} not found`
     });
 });
 
@@ -109,7 +122,6 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`🚀 Server running on http://127.0.0.1:${PORT}`);
+    console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📝 Health check: http://localhost:${PORT}/api/health`);
 });
