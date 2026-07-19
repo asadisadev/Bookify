@@ -34,44 +34,42 @@ connectDB();
 const app = express();
 
 // ============================================
-// COMPLETE CORS FIX - Allow all origins
+// COMPLETE CORS FIX - MUST BE FIRST
 // ============================================
 
-// Middleware to handle CORS manually (most reliable)
+// Manually set CORS headers for all responses
 app.use((req, res, next) => {
     // Allow all origins
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
     res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Max-Age', '86400'); // 24 hours cache for preflight
+    res.header('Access-Control-Max-Age', '86400');
     
-    // Handle preflight requests immediately
+    // Handle preflight requests
     if (req.method === 'OPTIONS') {
+        console.log('📡 Preflight request handled:', req.url);
         return res.sendStatus(200);
     }
     
     next();
 });
 
-// Additional CORS with cors package (as backup)
+// Additional CORS with cors package
 app.use(cors({
-    origin: true, // Allow all origins
+    origin: '*', // Allow all origins
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
-    exposedHeaders: ["Content-Range", "X-Content-Range"],
-    maxAge: 86400 // 24 hours
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"]
 }));
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Log all requests with origin
+// Log all requests
 app.use((req, res, next) => {
     console.log(`📡 ${req.method} ${req.url}`);
     console.log(`📡 Origin: ${req.headers.origin || 'No origin'}`);
-    console.log(`📡 User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'Unknown'}`);
     next();
 });
 
@@ -79,7 +77,7 @@ app.use((req, res, next) => {
 // ROUTES
 // ============================================
 
-// Health check - Must be before other routes
+// Health check
 app.get("/api/health", (req, res) => {
     try {
         const mongoStatus = mongoose.connection.readyState === 1 ? "Connected" : "Disconnected";
@@ -88,8 +86,7 @@ app.get("/api/health", (req, res) => {
             message: "Server is running",
             timestamp: new Date().toISOString(),
             mongoDB: mongoStatus,
-            mongoState: mongoose.connection.readyState,
-            environment: process.env.NODE_ENV || 'development'
+            mongoState: mongoose.connection.readyState
         });
     } catch (error) {
         res.status(500).json({
@@ -124,45 +121,24 @@ app.use("/api/appointments", appointmentRoutes);
 app.use("/api/business", businessRoutes);
 app.use("/api/admin", adminRoutes);
 
-// Test route for CORS
-app.get("/api/test-cors", (req, res) => {
-    res.json({
-        success: true,
-        message: "CORS is working!",
-        origin: req.headers.origin || 'No origin',
-        timestamp: new Date().toISOString()
-    });
-});
-
 // ============================================
 // ERROR HANDLING
 // ============================================
 
-// 404 handler for API routes
-app.use("/api/*", (req, res) => {
+// 404 handler
+app.use((req, res) => {
     res.status(404).json({
         success: false,
-        message: `Route ${req.method} ${req.url} not found`,
-        availableEndpoints: {
-            auth: "/api/auth (POST /register, POST /login, GET /me)",
-            dashboard: "/api/dashboard (GET /customer, /professional, /admin)",
-            appointments: "/api/appointments (GET, POST, PUT)",
-            business: "/api/business (GET, POST)",
-            admin: "/api/admin (GET, PUT)",
-            health: "/api/health (GET)"
-        }
+        message: `Route ${req.method} ${req.url} not found`
     });
 });
 
 // Global error handler
 app.use((err, req, res, next) => {
     console.error("❌ Global error handler:", err);
-    console.error("❌ Error stack:", err.stack);
-    
     res.status(err.status || 500).json({
         success: false,
-        message: err.message || "Internal server error",
-        error: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        message: err.message || "Internal server error"
     });
 });
 
@@ -174,6 +150,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📝 Health check: http://localhost:${PORT}/api/health`);
-    console.log(`📝 Test CORS: http://localhost:${PORT}/api/test-cors`);
-    console.log(`📡 Allowed origins: All origins (CORS enabled)`);
+    console.log(`📡 CORS: All origins allowed`);
 });
