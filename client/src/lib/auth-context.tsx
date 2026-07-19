@@ -5,81 +5,110 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "../integrations/supabase/client";
 
 export type AppRole = "customer" | "business" | "staff" | "admin";
 
+interface User {
+  _id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: string;
+  isApproved?: boolean;
+  profileImage?: string;
+}
+
 interface AuthState {
-  session: Session | null;
   user: User | null;
-  roles: AppRole[];
   loading: boolean;
+  roles: AppRole[];
   signOut: () => Promise<void>;
-  refreshRoles: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  isAuthenticated: boolean;
 }
 
 const Ctx = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadRoles = async (uid: string | undefined) => {
-    if (!uid) {
-      setRoles([]);
-      return;
+  const getToken = () => {
+    return localStorage.getItem('token');
+  };
+
+  const getUser = async () => {
+    const token = getToken();
+    if (!token) {
+      setLoading(false);
+      return null;
     }
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", uid);
-    setRoles((data ?? []).map((r: { role: AppRole }) => r.role));
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.user;
+      } else {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      return null;
+    }
   };
 
   useEffect(() => {
-    let mounted = true;
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
-      if (!mounted) return;
-      setSession(s);
-      setUser(s?.user ?? null);
-      setTimeout(() => {
-        loadRoles(s?.user?.id);
-      }, 0);
-    });
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      loadRoles(data.session?.user?.id).finally(() => {
-        if (mounted) setLoading(false);
-      });
-    }).catch(() => {
-      if (mounted) setLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      sub.subscription.unsubscribe();
+    const loadUser = async () => {
+      const userData = await getUser();
+      if (userData) {
+        setUser(userData);
+        // Map role from backend to AppRole
+        const roleMap: Record<string, AppRole> = {
+          'Customer': 'customer',
+          'Professional': 'staff',
+          'Admin': 'admin'
+        };
+        setRoles([roleMap[userData.role] || 'customer']);
+      }
+      setLoading(false);
     };
+
+    loadUser();
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
     setRoles([]);
   };
 
-  const refreshRoles = async () => {
-    await loadRoles(user?.id);
+  const refreshUser = async () => {
+    const userData = await getUser();
+    if (userData) {
+      setUser(userData);
+    }
   };
 
   return (
     <Ctx.Provider
-      value={{ session, user, roles, loading, signOut, refreshRoles }}
+      value={{
+        user,
+        loading,
+        roles,
+        signOut,
+        refreshUser,
+        isAuthenticated: !!user,
+      }}
     >
       {children}
     </Ctx.Provider>
@@ -92,7 +121,6 @@ export function useAuth() {
   return v;
 }
 
-// Export these functions that were missing
 export function primaryRole(roles: AppRole[]): AppRole {
   if (roles.includes("admin")) return "admin";
   if (roles.includes("business")) return "business";

@@ -8,6 +8,13 @@ import { Label } from "../components/ui/label";
 import { Card } from "../components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import { toast } from "sonner";
+import { z } from "zod";
+
+const searchSchema = z.object({
+  mode: z.enum(["signin", "signup"]).optional().default("signin"),
+  role: z.enum(["customer", "business"]).optional(),
+  next: z.string().optional(),
+});
 
 function Auth() {
   const [searchParams] = useSearchParams();
@@ -42,11 +49,13 @@ function Auth() {
       const email = String(fd.get("email"));
       const password = String(fd.get("password"));
 
+       const apiUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || 'https://bookify-production-00ef.up.railway.app/api';
+    const loginUrl = `${apiUrl}/auth/login`;
+
       console.log("🔄 Attempting login for:", email);
       console.log("📡 URL:", `${import.meta.env.VITE_API_URL}/auth/login`);
 
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/auth/login`,
+      const response = await fetch(loginUrl,
         {
           method: "POST",
           headers: {
@@ -58,7 +67,6 @@ function Auth() {
 
       console.log("📡 Response status:", response.status);
 
-      // Check if response is JSON
       const contentType = response.headers.get("content-type");
       if (contentType && contentType.includes("text/html")) {
         const text = await response.text();
@@ -78,7 +86,7 @@ function Auth() {
 
       toast.success("Signed in successfully");
       
-      // Force reload to update auth state
+      // Reload to update auth state
       window.location.href = "/dashboard";
     } catch (err) {
       console.error("❌ Login error:", err);
@@ -89,73 +97,68 @@ function Auth() {
   };
 
   const handleSignUp = async (e) => {
-  e.preventDefault();
-  const fd = new FormData(e.currentTarget);
-  setBusy(true);
-  try {
-    const email = String(fd.get("email"));
-    const password = String(fd.get("password"));
-    const full_name = String(fd.get("full_name"));
-    
-    const backendRole = signupRole === "business" ? "Professional" : "Customer";
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setBusy(true);
+    try {
+      const email = String(fd.get("email"));
+      const password = String(fd.get("password"));
+      const full_name = String(fd.get("full_name"));
+      
+      const backendRole = signupRole === "business" ? "Professional" : "Customer";
 
-    console.log("🔄 Attempting registration for:", email);
-    console.log("📡 URL:", `${import.meta.env.VITE_API_URL}/auth/register`);
+      console.log("🔄 Attempting registration for:", email);
+      console.log("📡 URL:", `${import.meta.env.VITE_API_URL}/auth/register`);
 
-    const response = await fetch(
-      `${import.meta.env.VITE_API_URL}/auth/register`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: full_name,
-          email: email,
-          password: password,
-          role: backendRole,
-        }),
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/auth/register`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: full_name,
+            email: email,
+            password: password,
+            role: backendRole,
+          }),
+        }
+      );
+
+      console.log("📡 Response status:", response.status);
+
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("text/html")) {
+        const text = await response.text();
+        console.error("Received HTML instead of JSON:", text.substring(0, 200));
+        throw new Error("Server returned HTML instead of JSON.");
       }
-    );
 
-    console.log("📡 Response status:", response.status);
+      const data = await response.json();
 
-    // Check if response is JSON
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("text/html")) {
-      const text = await response.text();
-      console.error("Received HTML instead of JSON:", text.substring(0, 200));
-      throw new Error("Server returned HTML instead of JSON. The endpoint might be incorrect.");
+      if (!response.ok) {
+        throw new Error(data.message || "Registration failed");
+      }
+
+      toast.success("Account created successfully! Please sign in.");
+      setTab("signin");
+      
+      // Reset form
+      e.currentTarget.reset();
+    } catch (err) {
+      console.error("❌ Registration error:", err);
+      toast.error(err instanceof Error ? err.message : "Sign up failed");
+    } finally {
+      setBusy(false);
     }
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || "Registration failed");
-    }
-
-    toast.success("Account created successfully! Please sign in.");
-    setTab("signin");
-    
-    // Reset form fields safely
-    // Store the form element reference before async operations
-    const form = e.currentTarget;
-    if (form && typeof form.reset === 'function') {
-      form.reset();
-    }
-  } catch (err) {
-    console.error("❌ Registration error:", err);
-    toast.error(err instanceof Error ? err.message : "Sign up failed");
-  } finally {
-    setBusy(false);
-  }
-};
+  };
 
   const handleGoogle = async () => {
     try {
       toast.info("Google sign-in will be available soon. Please use email for now.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Google sign-in unavailable. Please use email.");
+      toast.error("Google sign-in unavailable. Please use email.");
     }
   };
 
