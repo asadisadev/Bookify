@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
-
+const getApiUrl = () => (import.meta as any).env.VITE_API_URL;
   const getToken = () => {
     return localStorage.getItem('token');
   };
@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
+      const response = await fetch(`${getApiUrl()}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
